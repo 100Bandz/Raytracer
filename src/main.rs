@@ -9,12 +9,34 @@ type Color = Vec3;
 type Point3 = Vec3;
 
 fn ray_color(r: &Ray) -> Color {
+    let t = hit_sphere(&Point3::new(0.0, 0.0, -1.0), 0.5, r);
+
+    if t > 0.0 {
+        let n = Vec3::unit_vector(&r.at(t).subtract(Vec3::new(0.0, 0.0, -1.0)));
+        return Color::new(n.get_x() + 1.0, n.get_y() + 1.0, n.get_z() + 1.0).multiply_scalar(0.5);
+    }
+
     let unit_direction = Vec3::unit_vector(r.direction());
     let a = 0.5 * (unit_direction.get_y() + 1.0);
 
     Color::new(1.0, 1.0, 1.0)
         .multiply_scalar(1.0 - a)
         .add(Color::new(0.5, 0.7, 1.0).multiply_scalar(a))
+}
+
+fn hit_sphere(center: &Point3, radius: f64, r: &Ray) -> f64 {
+    let oc = center.subtract(*r.origin());
+    let a = Vec3::dot(r.direction(), r.direction());
+    let b = -2.0 * Vec3::dot(r.direction(), &oc);
+    let c = Vec3::dot(&oc, &oc) - radius * radius;
+
+    let discriminant = b * b - 4.0 * a * c;
+
+    if discriminant < 0.0 {
+        return -1.0;
+    } else {
+        return (-b - discriminant.sqrt()) / (2.0 * a);
+    }
 }
 
 fn main() {
