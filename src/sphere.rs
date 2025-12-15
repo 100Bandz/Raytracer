@@ -35,7 +35,7 @@ impl Hittable for Sphere {
 
         let mut root = (-half_b - sqrtd) / a;
         if (!ray_t.surrounds(root)) {
-            root = (half_b + sqrtd) / a;
+            root = (-half_b + sqrtd) / a;
             if (!ray_t.surrounds(root)) {
                 return false;
             }

@@ -13,6 +13,7 @@ pub struct Camera {
     pub aspect_ratio: f64,
     pub image_width: u32,
     pub samples_per_pixel: u32,
+    pub max_depth: u32,
 
     image_height: u32,
     center: Point3,
@@ -24,11 +25,13 @@ pub struct Camera {
 
 impl Camera {
     pub fn new(aspect_ratio: f64, image_width: u32) -> Self {
-        let samples_per_pixel = 10;
+        let samples_per_pixel = 50;
+        let max_depth = 25;
         Self {
             aspect_ratio,
             image_width,
             samples_per_pixel,
+            max_depth,
             image_height: 0,
             center: Point3::new(0.0, 0.0, 0.0),
             pixel00_loc: Point3::new(0.0, 0.0, 0.0),
@@ -50,15 +53,19 @@ impl Camera {
                 let mut pixel_color = Color::new(0.0, 0.0, 0.0);
                 for _ in 0..self.samples_per_pixel {
                     let ray = self.get_ray(i as f64, j as f64);
-                    pixel_color = pixel_color.add(&Self::ray_color(&ray, world));
+                    pixel_color = pixel_color.add(&Self::ray_color(&ray, self.max_depth, world));
                 }
+
                 pixel_color = pixel_color.multiply_scalar(self.pixel_samples_scale);
 
-                let intensity = Interval::with_bounds(0.000, 0.999);
+                let r = Self::linear_to_gamma(pixel_color.x);
+                let g = Self::linear_to_gamma(pixel_color.y);
+                let b = Self::linear_to_gamma(pixel_color.z);
 
-                let ir = (256.0 * intensity.clamp(pixel_color.x)) as u8;
-                let ig = (256.0 * intensity.clamp(pixel_color.y)) as u8;
-                let ib = (256.0 * intensity.clamp(pixel_color.z)) as u8;
+                let intensity = Interval::with_bounds(0.0, 0.999);
+                let ir = (256.0 * intensity.clamp(r)) as u8;
+                let ig = (256.0 * intensity.clamp(g)) as u8;
+                let ib = (256.0 * intensity.clamp(b)) as u8;
 
                 img.put_pixel(i, j, Rgb([ir, ig, ib]));
             }
@@ -100,7 +107,10 @@ impl Camera {
         );
     }
 
-    fn ray_color(r: &Ray, world: &dyn Hittable) -> Color {
+    fn ray_color(r: &Ray, depth: u32, world: &dyn Hittable) -> Color {
+        if depth <= 0 {
+            return Color::new(0.0, 0.0, 0.0);
+        }
         let mut rec = hittable::HitRecord {
             p: Point3::new(0.0, 0.0, 0.0),
             normal: Vec3::new(0.0, 0.0, 0.0),
@@ -108,11 +118,10 @@ impl Camera {
             front_face: false,
         };
 
-        if world.hit(r, Interval::with_bounds(0.0, INFINITY), &mut rec) {
-            return rec
-                .normal
-                .add(&Vec3::new(1.0, 1.0, 1.0))
-                .multiply_scalar(0.5);
+        if world.hit(r, Interval::with_bounds(0.001, INFINITY), &mut rec) {
+            let direction = rec.normal.add(&Vec3::random_unit_vector());
+            let scattered = Ray::new(rec.p, direction);
+            return Self::ray_color(&scattered, depth - 1, world).multiply_scalar(0.5);
         }
 
         let unit_direction = Vec3::unit_vector(r.direction());
@@ -141,5 +150,12 @@ impl Camera {
             y: (random_double() - 0.5),
             z: (0.0),
         };
+    }
+
+    pub fn linear_to_gamma(linear_component: f64) -> f64 {
+        if linear_component > 0.0 {
+            return linear_component.sqrt();
+        }
+        return 0.0;
     }
 }
