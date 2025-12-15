@@ -1,4 +1,6 @@
-use crate::{Color, Point3, Ray, interval::Interval, vec3::Vec3};
+use std::sync::Arc;
+
+use crate::{Color, Point3, Ray, interval::Interval, material::Material, vec3::Vec3};
 
 #[derive(Clone)]
 pub struct HitRecord {
@@ -6,6 +8,7 @@ pub struct HitRecord {
     pub normal: Vec3,
     pub t: f64,
     pub front_face: bool,
+    pub mat: Arc<dyn Material>,
 }
 
 impl HitRecord {

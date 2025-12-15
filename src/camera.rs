@@ -1,9 +1,10 @@
-use std::f64::INFINITY;
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
     constants::random_double,
     hittable::{self, Hittable},
     interval::{self, Interval},
+    material::Lambertian,
     ray::Ray,
     vec3::{Color, Point3, Vec3},
 };
@@ -116,12 +117,20 @@ impl Camera {
             normal: Vec3::new(0.0, 0.0, 0.0),
             t: 0.0,
             front_face: false,
+            mat: Arc::new(Lambertian {
+                albedo: Vec3::new(0.5, 0.5, 0.5),
+            }),
         };
 
         if world.hit(r, Interval::with_bounds(0.001, INFINITY), &mut rec) {
-            let direction = rec.normal.add(&Vec3::random_unit_vector());
-            let scattered = Ray::new(rec.p, direction);
-            return Self::ray_color(&scattered, depth - 1, world).multiply_scalar(0.5);
+            let mut scattered = Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0));
+            let mut attenuation = Color::new(0.0, 0.0, 0.0);
+
+            if rec.mat.scatter(r, &rec, &mut attenuation, &mut scattered) {
+                return attenuation.multiply(&Self::ray_color(&scattered, depth - 1, world));
+            } else {
+                return Color::new(0.0, 0.0, 0.0);
+            }
         }
 
         let unit_direction = Vec3::unit_vector(r.direction());

@@ -1,6 +1,8 @@
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
+use crate::material::Lambertian;
 use crate::ray::Ray;
+use crate::vec3::Vec3;
 use std::sync::Arc;
 
 pub struct HittableList {
@@ -26,6 +28,9 @@ impl Hittable for HittableList {
             normal: crate::vec3::Vec3::new(0.0, 0.0, 0.0),
             t: 0.0,
             front_face: false,
+            mat: Arc::new(Lambertian {
+                albedo: Vec3::new(0.5, 0.5, 0.5),
+            }),
         };
         let mut hit_anything = false;
         let mut closest_so_far = ray_t.max;

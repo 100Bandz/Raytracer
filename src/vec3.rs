@@ -20,6 +20,11 @@ impl Vec3 {
         self.length_squared().sqrt()
     }
 
+    pub fn near_zero(&self) -> bool {
+        let s = 1e-8;
+        return self.x.abs() < s && self.y.abs() < s && self.z.abs() < s;
+    }
+
     pub fn dot(u: &Vec3, v: &Vec3) -> f64 {
         u.x * v.x + u.y * v.y + u.z * v.z
     }
@@ -38,6 +43,10 @@ impl Vec3 {
         }
     }
 
+    pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
+        return v.subtract(&n.multiply_scalar(2.0 * Self::dot(&v, &n)));
+    }
+
     pub fn add(&self, other: &Vec3) -> Vec3 {
         Vec3::new(self.x + other.x, self.y + other.y, self.z + other.z)
     }
@@ -48,6 +57,10 @@ impl Vec3 {
 
     pub fn multiply_scalar(&self, t: f64) -> Vec3 {
         Vec3::new(self.x * t, self.y * t, self.z * t)
+    }
+
+    pub fn multiply(&self, other: &Vec3) -> Vec3 {
+        Vec3::new(self.x * other.x, self.y * other.y, self.z * other.z)
     }
 
     pub fn divide(&self, t: f64) -> Vec3 {
