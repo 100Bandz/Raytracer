@@ -1,7 +1,7 @@
 use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
-    constants::random_double,
+    constants::{degrees_to_radians, random_double},
     hittable::{self, Hittable},
     interval::{self, Interval},
     material::Lambertian,
@@ -15,6 +15,12 @@ pub struct Camera {
     pub image_width: u32,
     pub samples_per_pixel: u32,
     pub max_depth: u32,
+    pub vfov: f64,
+    pub lookfrom: Point3,
+    pub lookat: Point3,
+    pub vup: Vec3,
+    pub defocus_angle: f64,
+    pub focus_dist: f64,
 
     image_height: u32,
     center: Point3,
@@ -22,23 +28,41 @@ pub struct Camera {
     pixel_delta_u: Vec3,
     pixel_delta_v: Vec3,
     pixel_samples_scale: f64,
+    u: Vec3,
+    v: Vec3,
+    w: Vec3,
+    defocus_disk_u: Vec3,
+    defocus_disk_v: Vec3,
 }
 
 impl Camera {
     pub fn new(aspect_ratio: f64, image_width: u32) -> Self {
-        let samples_per_pixel = 50;
+        let samples_per_pixel = 10;
         let max_depth = 25;
+        let vfov = 20.0;
         Self {
             aspect_ratio,
             image_width,
             samples_per_pixel,
             max_depth,
+            vfov,
+            lookfrom: Point3::new(13.0, 2.0, 3.0),
+            lookat: Point3::new(0.0, 0.0, 0.0),
+            vup: Vec3::new(0.0, 1.0, 0.0),
+            defocus_angle: 0.6,
+            focus_dist: 10.0,
+
             image_height: 0,
             center: Point3::new(0.0, 0.0, 0.0),
             pixel00_loc: Point3::new(0.0, 0.0, 0.0),
             pixel_delta_u: Vec3::new(0.0, 0.0, 0.0),
             pixel_delta_v: Vec3::new(0.0, 0.0, 0.0),
             pixel_samples_scale: 1.0 / samples_per_pixel as f64,
+            u: Vec3::new(0.0, 0.0, 0.0),
+            v: Vec3::new(0.0, 0.0, 0.0),
+            w: Vec3::new(0.0, 0.0, 0.0),
+            defocus_disk_u: Vec3::new(0.0, 0.0, 0.0),
+            defocus_disk_v: Vec3::new(0.0, 0.0, 0.0),
         }
     }
 
@@ -82,23 +106,34 @@ impl Camera {
             self.image_height = 1;
         }
 
-        self.center = Point3::new(0.0, 0.0, 0.0);
+        self.center = self.lookfrom.clone();
 
-        let focal_length = 1.0;
-        let viewport_height = 2.0;
+        let theta = degrees_to_radians(self.vfov);
+        let h = (theta / 2.0).tan();
+
+        let viewport_height = 2.0 * h * self.focus_dist;
         let viewport_width = viewport_height * (self.image_width as f64 / self.image_height as f64);
 
-        let viewport_u = Vec3::new(viewport_width, 0.0, 0.0);
-        let viewport_v = Vec3::new(0.0, -viewport_height, 0.0);
+        let w = Vec3::unit_vector(&self.lookfrom.subtract(&self.lookat));
+        let u = Vec3::unit_vector(&Vec3::cross(&self.vup, &w));
+        let v = Vec3::cross(&w, &u);
+
+        let viewport_u = u.multiply_scalar(viewport_width);
+        let viewport_v = v.negate().multiply_scalar(viewport_height);
 
         self.pixel_delta_u = viewport_u.divide(self.image_width as f64);
         self.pixel_delta_v = viewport_v.divide(self.image_height as f64);
 
         let viewport_upper_left = self
             .center
-            .subtract(&Vec3::new(0.0, 0.0, focal_length))
+            .subtract(&w.multiply_scalar(self.focus_dist))
             .subtract(&viewport_u.divide(2.0))
             .subtract(&viewport_v.divide(2.0));
+
+        let defocus_radius = self.focus_dist * (self.defocus_angle / 2.0).to_radians().tan();
+
+        let defocus_disk_u = u.multiply_scalar(defocus_radius);
+        let defocus_disk_v = v.multiply_scalar(defocus_radius);
 
         self.pixel00_loc = viewport_upper_left.add(
             &self
@@ -147,7 +182,8 @@ impl Camera {
                 .add(&(self.pixel_delta_v.multiply_scalar(j + offset.y))),
         );
 
-        let ray_origin = self.center.clone();
+        let ray_origin = if self.defocus_angle <= 0.0 { self.center.clone() } else {self.defocus_disk_sample()};
+
         let ray_direction = pixel_sample.subtract(&self.center);
 
         return Ray::new(ray_origin, ray_direction);
@@ -166,5 +202,10 @@ impl Camera {
             return linear_component.sqrt();
         }
         return 0.0;
+    }
+
+    pub fn defocus_disk_sample(&self) -> Point3 {
+        let p = Vec3::random_in_unit_disk();
+        return self.center.add(&self.defocus_disk_u.multiply_scalar(p.x)).add(&self.defocus_disk_v.multiply_scalar(p.y));
     }
 }

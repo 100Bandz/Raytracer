@@ -1,7 +1,5 @@
 use crate::{
-    hittable::HitRecord,
-    ray::Ray,
-    vec3::{Color, Vec3},
+    constants::random_double, hittable::HitRecord, ray::Ray, vec3::{Color, Vec3}
 };
 use std::sync::Arc;
 
@@ -80,4 +78,54 @@ impl Material for Metal {
 
         return Vec3::dot(scattered.direction(), &rec.normal) > 0.0;
     }
+}
+
+
+// Diaelectric material
+pub struct Diaelectric {
+    refraction_index: f64,
+}
+
+impl Diaelectric {
+    pub fn new(refraction_index: f64) -> Self {
+        Self {
+            refraction_index
+        }
+    }
+
+    fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
+        let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
+        r0 = r0 * r0;
+        return r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
+    }
+    
+}
+
+impl Material for Diaelectric {
+    fn scatter(&self, r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray,) -> bool {
+
+        *attenuation =  Color::new(1.0, 1.0, 1.0);
+
+        let ri = if rec.front_face { 1.0 / self.refraction_index } else { self.refraction_index };
+
+        let unit_direction = Vec3::unit_vector(&r_in.direction);
+
+        let cos_theta = (-Vec3::dot(&unit_direction, &rec.normal)).min(1.0);
+        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+
+        let cannon_refract = ri * sin_theta > 1.0;
+
+        let direction;
+
+        if cannon_refract || Self::reflectance(cos_theta, ri) > random_double() {
+            direction = Vec3::reflect(unit_direction, rec.normal.clone());
+        }
+        else {
+            direction = Vec3::refract(unit_direction, rec.normal.clone(), ri);
+        }
+        
+        *scattered = Ray::new(rec.p.clone(), direction);
+        return true;
+    }
+
 }
