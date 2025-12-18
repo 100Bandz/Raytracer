@@ -1,100 +1,83 @@
-use std::cmp::min;
-
 use crate::constants::{random_double, random_double_range};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Vec3 {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
+    #[inline]
+    pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
-    pub fn length_squared(&self) -> f64 {
+    #[inline]
+    pub fn length_squared(self) -> f32 {
         self.x * self.x + self.y * self.y + self.z * self.z
     }
 
-    pub fn length(&self) -> f64 {
+    #[inline]
+    pub fn length(self) -> f32 {
         self.length_squared().sqrt()
     }
 
-    pub fn near_zero(&self) -> bool {
+    #[inline]
+    pub fn near_zero(self) -> bool {
         let s = 1e-8;
-        return self.x.abs() < s && self.y.abs() < s && self.z.abs() < s;
+        self.x.abs() < s && self.y.abs() < s && self.z.abs() < s
     }
 
-    pub fn dot(u: &Vec3, v: &Vec3) -> f64 {
+    #[inline]
+    pub fn dot(u: Vec3, v: Vec3) -> f32 {
         u.x * v.x + u.y * v.y + u.z * v.z
     }
 
-    pub fn unit_vector(v: &Vec3) -> Vec3 {
-        v.clone().divide(v.length())
+    #[inline]
+    pub fn unit_vector(v: Vec3) -> Vec3 {
+        v / v.length()
     }
 
     pub fn random_unit_vector() -> Vec3 {
         loop {
-            let p = Vec3::random_with_inputs(-1.0, 1.0);
+            let p = Vec3::random_in_range(-1.0, 1.0);
             let lensq = p.length_squared();
             if 1e-160 < lensq && lensq <= 1.0 {
-                return p.divide(lensq.sqrt());
+                return p / lensq.sqrt();
             }
         }
     }
 
-    pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f64) -> Vec3 {
-        let cos_theta = Vec3::dot(&uv.negate(), &n).min(1.0);
-
-        let r_out_perp = (n.multiply_scalar(cos_theta).add(&uv)).multiply_scalar(etai_over_etat);
-        let r_out_parallel = n.multiply_scalar(-((1.0 - r_out_perp.length_squared()).abs().sqrt()));
-
-        return r_out_parallel.add(&r_out_perp);
+    #[inline]
+    pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f32) -> Vec3 {
+        let cos_theta = Vec3::dot(-uv, n).min(1.0);
+        let r_out_perp = (uv + n * cos_theta) * etai_over_etat;
+        let r_out_parallel = n * -((1.0 - r_out_perp.length_squared()).abs().sqrt());
+        r_out_parallel + r_out_perp
     }
 
+    #[inline]
     pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
-        return v.subtract(&n.multiply_scalar(2.0 * Self::dot(&v, &n)));
+        return v - n * (2.0 * Self::dot(v, n));
     }
 
-    pub fn add(&self, other: &Vec3) -> Vec3 {
-        Vec3::new(self.x + other.x, self.y + other.y, self.z + other.z)
-    }
-
-    pub fn subtract(&self, other: &Vec3) -> Vec3 {
-        Vec3::new(self.x - other.x, self.y - other.y, self.z - other.z)
-    }
-
-    pub fn multiply_scalar(&self, t: f64) -> Vec3 {
-        Vec3::new(self.x * t, self.y * t, self.z * t)
-    }
-
-    pub fn multiply(&self, other: &Vec3) -> Vec3 {
-        Vec3::new(self.x * other.x, self.y * other.y, self.z * other.z)
-    }
-
-    pub fn cross(u: &Vec3, v: &Vec3) -> Vec3 {
-        Vec3::new(
+    #[inline]
+    pub fn cross(u: Vec3, v: Vec3) -> Vec3 {
+        return Vec3::new(
             u.y * v.z - u.z * v.y,
             u.z * v.x - u.x * v.z,
             u.x * v.y - u.y * v.x,
-        )
+        );
     }
 
-    pub fn divide(&self, t: f64) -> Vec3 {
-        self.multiply_scalar(1.0 / t)
-    }
-
-    pub fn negate(&self) -> Vec3 {
-        Vec3::new(-self.x, -self.y, -self.z)
-    }
-
+    #[inline]
     pub fn random() -> Vec3 {
         return Vec3::new(random_double(), random_double(), random_double());
     }
 
-    pub fn random_with_inputs(min: f64, max: f64) -> Vec3 {
+    #[inline]
+    pub fn random_in_range(min: f32, max: f32) -> Vec3 {
         return Vec3::new(
             random_double_range(min, max),
             random_double_range(min, max),
@@ -102,25 +85,76 @@ impl Vec3 {
         );
     }
 
-    pub fn random_on_hemisphere(normal: &Vec3) -> Vec3 {
+    pub fn random_on_hemisphere(normal: Vec3) -> Vec3 {
         let on_unit_sphere = Vec3::random_unit_vector();
-        if Vec3::dot(&on_unit_sphere, normal) > 0.0 {
+        if Vec3::dot(on_unit_sphere, normal) > 0.0 {
             return on_unit_sphere;
         } else {
-            return on_unit_sphere.negate();
+            return -on_unit_sphere;
         }
     }
 
     pub fn random_in_unit_disk() -> Vec3 {
         loop {
-            let p = Vec3::new(random_double_range(-1.0, 1.0),
-             random_double_range(-1.0, 1.0), 
-             0.0);
-
+            let p = Vec3::new(
+                random_double_range(-1.0, 1.0),
+                random_double_range(-1.0, 1.0),
+                0.0,
+            );
             if p.length_squared() < 1.0 {
                 return p;
             }
         }
+    }
+}
+
+use std::ops::{Add, Div, Mul, Neg, Sub};
+
+impl Add for Vec3 {
+    type Output = Self;
+    #[inline]
+    fn add(self, other: Self) -> Self {
+        return Self::new(self.x + other.x, self.y + other.y, self.z + other.z);
+    }
+}
+
+impl Sub for Vec3 {
+    type Output = Self;
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        return Self::new(self.x - other.x, self.y - other.y, self.z - other.z);
+    }
+}
+
+impl Mul<f32> for Vec3 {
+    type Output = Self;
+    #[inline]
+    fn mul(self, t: f32) -> Self {
+        return Self::new(self.x * t, self.y * t, self.z * t);
+    }
+}
+
+impl Mul<Vec3> for Vec3 {
+    type Output = Self;
+    #[inline]
+    fn mul(self, other: Vec3) -> Self {
+        return Self::new(self.x * other.x, self.y * other.y, self.z * other.z);
+    }
+}
+
+impl Div<f32> for Vec3 {
+    type Output = Self;
+    #[inline]
+    fn div(self, t: f32) -> Self {
+        return self * (1.0 / t);
+    }
+}
+
+impl Neg for Vec3 {
+    type Output = Self;
+    #[inline]
+    fn neg(self) -> Self {
+        return Self::new(-self.x, -self.y, -self.z);
     }
 }
 

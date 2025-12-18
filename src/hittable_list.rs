@@ -1,8 +1,8 @@
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
-use crate::material::Lambertian;
+use crate::material::Material;
 use crate::ray::Ray;
-use crate::vec3::Vec3;
+use crate::vec3::{Point3, Vec3};
 use std::sync::Arc;
 
 pub struct HittableList {
@@ -24,13 +24,13 @@ impl HittableList {
 impl Hittable for HittableList {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
         let mut temp_rec = HitRecord {
-            p: crate::vec3::Point3::new(0.0, 0.0, 0.0),
-            normal: crate::vec3::Vec3::new(0.0, 0.0, 0.0),
+            p: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 0.0),
             t: 0.0,
             front_face: false,
-            mat: Arc::new(Lambertian {
+            mat: Material::Lambertian {
                 albedo: Vec3::new(0.5, 0.5, 0.5),
-            }),
+            },
         };
         let mut hit_anything = false;
         let mut closest_so_far = ray_t.max;
@@ -43,7 +43,7 @@ impl Hittable for HittableList {
             ) {
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
-                *rec = temp_rec.clone();
+                *rec = temp_rec;
             }
         }
 

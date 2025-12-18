@@ -1,23 +1,22 @@
-use std::sync::Arc;
+use crate::{interval::Interval, material::Material, ray::Ray, vec3::*};
 
-use crate::{Color, Point3, Ray, interval::Interval, material::Material, vec3::Vec3};
-
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct HitRecord {
     pub p: Point3,
     pub normal: Vec3,
-    pub t: f64,
+    pub t: f32,
     pub front_face: bool,
-    pub mat: Arc<dyn Material>,
+    pub mat: Material,
 }
 
 impl HitRecord {
-    pub fn set_face_normal(&mut self, r: &Ray, outward_normal: &Vec3) {
-        self.front_face = Vec3::dot(r.direction(), outward_normal) < 0.0;
+    #[inline]
+    pub fn set_face_normal(&mut self, r: &Ray, outward_normal: Vec3) {
+        self.front_face = Vec3::dot(r.direction, outward_normal) < 0.0;
         self.normal = if self.front_face {
-            outward_normal.clone()
+            outward_normal
         } else {
-            outward_normal.negate()
+            -outward_normal
         };
     }
 }

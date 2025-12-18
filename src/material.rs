@@ -1,131 +1,73 @@
-use crate::{
-    constants::random_double, hittable::HitRecord, ray::Ray, vec3::{Color, Vec3}
-};
-use std::sync::Arc;
+use crate::{constants::random_double, hittable::HitRecord, ray::Ray, vec3::*};
 
-/// Trait for materials
-pub trait Material: Send + Sync {
-    fn scatter(
+#[derive(Clone, Copy)]
+pub enum Material {
+    Lambertian { albedo: Color },
+    Metal { albedo: Color, fuzz: f32 },
+    Dielectric { refraction_index: f32 },
+}
+
+impl Material {
+    #[inline]
+    pub fn scatter(
         &self,
         r_in: &Ray,
         rec: &HitRecord,
         attenuation: &mut Color,
         scattered: &mut Ray,
     ) -> bool {
-        false
-    }
-}
+        match self {
+            Material::Lambertian { albedo } => {
+                let mut scatter_direction = rec.normal + Vec3::random_unit_vector();
 
-/// Lambertian diffuse material
-pub struct Lambertian {
-    pub albedo: Color,
-}
+                if scatter_direction.near_zero() {
+                    scatter_direction = rec.normal;
+                }
 
-impl Lambertian {
-    pub fn new(albedo: Color) -> Self {
-        Self { albedo }
-    }
-}
+                *scattered = Ray::new(rec.p, scatter_direction);
+                *attenuation = *albedo;
+                true
+            }
 
-impl Material for Lambertian {
-    fn scatter(
-        &self,
-        _r_in: &Ray,
-        rec: &HitRecord,
-        attenuation: &mut Color,
-        scattered: &mut Ray,
-    ) -> bool {
-        let mut scatter_direction = rec.normal.add(&Vec3::random_unit_vector());
+            Material::Metal { albedo, fuzz } => {
+                let reflected = Vec3::reflect(Vec3::unit_vector(r_in.direction), rec.normal);
+                let reflected = Vec3::unit_vector(reflected) + Vec3::random_unit_vector() * *fuzz;
+                *scattered = Ray::new(rec.p, reflected);
+                *attenuation = *albedo;
+                Vec3::dot(scattered.direction, rec.normal) > 0.0
+            }
 
-        if scatter_direction.near_zero() {
-            scatter_direction = rec.normal.clone();
-        }
+            Material::Dielectric { refraction_index } => {
+                *attenuation = Color::new(1.0, 1.0, 1.0);
 
-        *scattered = Ray::new(rec.p.clone(), scatter_direction);
-        *attenuation = self.albedo.clone();
-        true
-    }
-}
+                let ri = if rec.front_face {
+                    1.0 / refraction_index
+                } else {
+                    *refraction_index
+                };
 
-// Metal material
-pub struct Metal {
-    albedo: Color,
-    fuzz: f64,
-}
+                let unit_direction = Vec3::unit_vector(r_in.direction);
+                let cos_theta = Vec3::dot(-unit_direction, rec.normal).min(1.0);
+                let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
 
-impl Metal {
-    pub fn new(albedo: Color, fuzz: f64) -> Self {
-        Self {
-            albedo,
-            fuzz: if fuzz < 1.0 { fuzz } else { 1.0 },
-        }
-    }
-}
+                let cannot_refract = ri * sin_theta > 1.0;
+                let direction = if cannot_refract || reflectance(cos_theta, ri) > random_double() {
+                    Vec3::reflect(unit_direction, rec.normal)
+                } else {
+                    Vec3::refract(unit_direction, rec.normal, ri)
+                };
 
-impl Material for Metal {
-    fn scatter(
-        &self,
-        r_in: &Ray,
-        rec: &HitRecord,
-        attenuation: &mut Color,
-        scattered: &mut Ray,
-    ) -> bool {
-        let reflected = Vec3::reflect(r_in.direction().clone(), rec.normal.clone());
-        let reflected = Vec3::unit_vector(&reflected)
-            .add(&Vec3::random_unit_vector().multiply_scalar(self.fuzz));
-        *scattered = Ray::new(rec.p.clone(), reflected);
-        *attenuation = self.albedo.clone();
-
-        return Vec3::dot(scattered.direction(), &rec.normal) > 0.0;
-    }
-}
-
-
-// Diaelectric material
-pub struct Diaelectric {
-    refraction_index: f64,
-}
-
-impl Diaelectric {
-    pub fn new(refraction_index: f64) -> Self {
-        Self {
-            refraction_index
+                *scattered = Ray::new(rec.p, direction);
+                
+                true
+            }
         }
     }
-
-    fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
-        let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
-        r0 = r0 * r0;
-        return r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
-    }
-    
 }
 
-impl Material for Diaelectric {
-    fn scatter(&self, r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray,) -> bool {
-
-        *attenuation =  Color::new(1.0, 1.0, 1.0);
-
-        let ri = if rec.front_face { 1.0 / self.refraction_index } else { self.refraction_index };
-
-        let unit_direction = Vec3::unit_vector(&r_in.direction);
-
-        let cos_theta = (-Vec3::dot(&unit_direction, &rec.normal)).min(1.0);
-        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
-
-        let cannon_refract = ri * sin_theta > 1.0;
-
-        let direction;
-
-        if cannon_refract || Self::reflectance(cos_theta, ri) > random_double() {
-            direction = Vec3::reflect(unit_direction, rec.normal.clone());
-        }
-        else {
-            direction = Vec3::refract(unit_direction, rec.normal.clone(), ri);
-        }
-        
-        *scattered = Ray::new(rec.p.clone(), direction);
-        return true;
-    }
-
+#[inline]
+fn reflectance(cosine: f32, refraction_index: f32) -> f32 {
+    let r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
+    let r0 = r0 * r0;
+    return r0 + (1.0 - r0) * (1.0 - cosine).powi(5);
 }
